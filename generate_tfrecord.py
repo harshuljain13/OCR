@@ -3,9 +3,11 @@ Usage:
   # From tensorflow/models/
   # Create train data:
   python2 generate_tfrecord.py --csv_input=data/ocr_train_labels.csv  --output_path=train.record
-
+ 
   # Create test data:
   python2 generate_tfrecord.py --csv_input=data/ocr_test_labels.csv  --output_path=test.record
+  
+  
 """
 from __future__ import division
 from __future__ import print_function
@@ -46,7 +48,7 @@ for k,v in label_cls_name_map.iteritems():
 # TO-DO replace this with label map
 def class_text_to_int(row_label):
     if row_label:
-        return int(label_name_cls_map[row_label])
+        return int(label_name_cls_map[row_label])+1
     else:
         None
 
