@@ -1,0 +1,375 @@
+#!/bin/bash
+#
+# Developed by Fred Weinhaus 6/29/2008 .......... revised 4/25/2015
+#
+# ------------------------------------------------------------------------------
+# 
+# Licensing:
+# 
+# Copyright © Fred Weinhaus
+# 
+# My scripts are available free of charge for non-commercial use, ONLY.
+# 
+# For use of my scripts in commercial (for-profit) environments or 
+# non-free applications, please contact me (Fred Weinhaus) for 
+# licensing arrangements. My email address is fmw at alink dot net.
+# 
+# If you: 1) redistribute, 2) incorporate any of these scripts into other 
+# free applications or 3) reprogram them in another scripting language, 
+# then you must contact me for permission, especially if the result might 
+# be used in a commercial or for-profit environment.
+# 
+# My scripts are also subject, in a subordinate manner, to the ImageMagick 
+# license, which can be found at: http://www.imagemagick.org/script/license.php
+# 
+# ------------------------------------------------------------------------------
+# 
+####
+#
+# USAGE: captcha [-f font] [-p pointsize] [-t textcolor] [-u undercolor] [-b bordercolor] [-m mode] [-a angle] [-r resize] outfile
+# USAGE: captcha [-h or -help]
+#
+# OPTIONS:
+#
+# -f      font					fontname or path-to-font-file; default=TimesNewRoman
+# -p      pointsize				pointsize for font; default=40
+# -t      textcolor			    color of text; any IM color specification; default=black
+# -u      undercolor			background color under text; any IM color specification; 
+#                               default=white;
+# -b      bordercolor           color of image border; any IM color specification; 
+#                               default=black;
+# -m      mode                  mode to orient text: skew, rotate, both; default=skew
+# -a      angle                 maximum orientation angle of text used with mode; 
+#                               default=40 (degrees). Values are integers 0<=angle<=60
+# -r      resize          		output image resize in percent; default=100 (percent) which
+#                               produces an image 300x80 pixels
+#
+###
+#
+# NAME: CAPTCHA 
+# 
+# PURPOSE: To create a six-alphanumeric-character image for use as a challenge 
+# response test.
+# 
+# DESCRIPTION: CAPTCHA creates a six-alphanumeric-character image for use as a challenge 
+# response test. It builds a default image of size 300x80 pixels containing 6 alphanumeric 
+# characters that are randomly positioned and oriented and overlaid with random curved and 
+# straight lines segments.
+# 
+# 
+# ARGUMENTS: 
+# 
+# -f font ... FONT is the desired font or path-to-font-file for the text. The default 
+# is TimesNewRoman.
+#
+# -p pointsize ... POINTSIZE is the desired pointsize for the font. The default is 40.
+# 
+# -t textcolor ... TEXTCOLOR is the color to apply to the text. Any valid IM 
+# text color may be used. The default is black. 
+# See http://imagemagick.org/script/color.php
+# 
+# -u undercolor ... UNDERCOLOR is the background color to apply directly under the text. 
+# Any valid IM text color may be used. The default is white.
+# See http://imagemagick.org/script/color.php
+# 
+# -b bordercolor ... BORDERCOLOR is the color to apply to the image border. 
+# Any valid IM text color may be used. The default is black. 
+# See http://imagemagick.org/script/color.php
+# 
+# -m mode ... MODE is the mode for randomly orienting the text. The choices are: 
+# skew, rotate or both.
+# 
+# -a angle ... ANGLE is the maximum angle to use to randomly orient the text. 
+# The default=40 (degrees).
+#
+# -r resize ... RESIZE is the percentage of the default output image size of 300x80 
+# to use to generate the output image. The default is 100 (percent). All images are 
+# created at a size of 300x80, including a 5 pixel border. If resize is specified, 
+# the output image will be resized accordingly by a post-processing step using 
+# the IM -resize function.
+# 
+# NOTE: Some effects require the use of -fx and thus will be slower than the others. 
+# These include: the variations on bulge, concave, convex and pinch.
+# 
+# CAVEAT: No guarantee that this script will work on all platforms, 
+# nor that trapping of inconsistent parameters is complete and 
+# foolproof. Use At Your Own Risk. 
+# 
+######
+#
+
+# set default values
+mode="skew"
+angle="40"
+font="TimesNewRoman"
+pointsize="40"
+textcolor="black"
+bordercolor="black"
+undercolor="white"
+resize=100
+
+# set directory for temporary files
+dir="."    # suggestions are dir="." or dir="/tmp"
+
+# set up functions to report Usage and Usage with Description
+PROGNAME=`type $0 | awk '{print $3}'`  # search for executable on path
+PROGDIR=`dirname $PROGNAME`            # extract directory of program
+PROGNAME=`basename $PROGNAME`          # base name of program
+usage1() 
+	{
+	echo >&2 ""
+	echo >&2 "$PROGNAME:" "$@"
+	sed >&2 -e '1,/^####/d;  /^###/g;  /^#/!q;  s/^#//;  s/^ //;  4,$p' "$PROGDIR/$PROGNAME"
+	}
+usage2() 
+	{
+	echo >&2 ""
+	echo >&2 "$PROGNAME:" "$@"
+	sed >&2 -e '1,/^####/d;  /^######/g;  /^#/!q;  s/^#*//;  s/^ //;  4,$p' "$PROGDIR/$PROGNAME"
+	}
+
+
+# function to report error messages
+errMsg()
+	{
+	echo ""
+	echo $1
+	echo ""
+	usage1
+	exit 1
+	}
+
+
+# function to test for minus at start of value of second part of option 1 or 2
+checkMinus()
+	{
+	test=`echo "$1" | grep -c '^-.*$'`   # returns 1 if match; 0 otherwise
+    [ $test -eq 1 ] && errMsg "$errorMsg"
+	}
+
+# test for correct number of arguments and get values
+if [ $# -eq 0 ]
+	then
+	# help information
+   echo ""
+   usage2
+   exit 0
+elif [ $# -gt 17 ]
+	then
+	errMsg "--- TOO MANY ARGUMENTS WERE PROVIDED ---"
+else
+	while [ $# -gt 0 ]
+		do
+			# get parameter values
+			case "$1" in
+		  -h|-help)    # help information
+					   echo ""
+					   usage2
+					   exit 0
+					   ;;
+				-f)    # get  font
+					   shift  # to get the next parameter
+					   # test if parameter starts with minus sign 
+					   errorMsg="--- INVALID FONT SPECIFICATION ---"
+					   checkMinus "$1"
+					   font="$1"
+					   ;;
+				-p)    # get pointsize
+					   shift  # to get the next parameter
+					   # test if parameter starts with minus sign 
+					   errorMsg="--- INVALID POINTSIZE SPECIFICATION ---"
+					   checkMinus "$1"
+					   pointsize=`expr "$1" : '\([0-9]*\)'`
+					   [ "$pointsize" = "" ] && errMsg "--- POINTSIZE=$pointsize MUST BE A NON-NEGATIVE INTEGER ---"
+					   pointsizetestA=`echo "$pointsize <= 0" | bc`
+					   [ $pointsizetestA -eq 1 ] && errMsg "--- POINTSIZE=$pointsize MUST BE AN INTEGER GREATER THAN 0 ---"
+					   ;;
+				-t)    # get  textcolor
+					   shift  # to get the next parameter
+					   # test if parameter starts with minus sign 
+					   errorMsg="--- INVALID TEXTCOLOR SPECIFICATION ---"
+					   checkMinus "$1"
+					   textcolor="$1"
+					   ;;
+				-u)    # get  undercolor
+					   shift  # to get the next parameter
+					   # test if parameter starts with minus sign 
+					   errorMsg="--- INVALID UNDERCOLOR SPECIFICATION ---"
+					   checkMinus "$1"
+					   undercolor="$1"
+					   ;;
+				-b)    # get  bordercolor
+					   shift  # to get the next parameter
+					   # test if parameter starts with minus sign 
+					   errorMsg="--- INVALID BORDERCOLOR SPECIFICATION ---"
+					   checkMinus "$1"
+					   bordercolor="$1"
+					   ;;
+				-m)    # get  mode
+					   shift  # to get the next parameter
+					   # test if parameter starts with minus sign 
+					   errorMsg="--- INVALID MODE SPECIFICATION ---"
+					   checkMinus "$1"
+					   mode="$1"
+					   #convert mode to lowercase
+					   mode=`echo "$mode" | tr "[:upper:]" "[:lower:]"`
+					   case "$mode" in 
+					   		skew) ;;
+					   		rotate) ;;
+					   		both) ;;
+					   		*) errMsg "--- MODE=$mode IS AN INVALID VALUE ---" 
+					   esac
+					   ;;
+				-a)    # get angle
+					   shift  # to get the next parameter
+					   # test if parameter starts with minus sign 
+					   errorMsg="--- INVALID ANGLE SPECIFICATION ---"
+					   checkMinus "$1"
+					   angle=`expr "$1" : '\([0-9]*\)'`
+					   [ "$angle" = "" ] && errMsg "--- angle=$angle MUST BE A NON-NEGATIVE INTEGER ---"
+					   angletestA=`echo "$angle < 0" | bc`
+					   angletestB=`echo "$angle > 60" | bc`
+					   [ $angletestA -eq 1 -o $angletestB -eq 1 ] && errMsg "--- angle=$angle MUST BE AN INTEGER BETWEEN 0 AND 60 ---"
+					   ;;
+				-r)    # get resize
+					   shift  # to get the next parameter
+					   # test if parameter starts with minus sign 
+					   errorMsg="--- INVALID RESIZE SPECIFICATION ---"
+					   checkMinus "$1"
+					   resize=`expr "$1" : '\([0-9]*\)'`
+					   [ "$resize" = "" ] && errMsg "--- RESIZE=$resize MUST BE A NON-NEGATIVE INTEGER ---"
+					   resizetestA=`echo "$resize <= 0" | bc`
+					   [ $resizetestA -eq 1 ] && errMsg "--- RESIZE=$resize MUST BE AN INTEGER GREATER THAN 0 ---"
+					   ;;
+				 -)    # STDIN and end of arguments
+					   break
+					   ;;
+				-*)    # any other - argument
+					   errMsg "--- UNKNOWN OPTION ---"
+					   ;;
+		     	 *)    # end of arguments
+					   break
+					   ;;
+			esac
+			shift   # next option
+	done
+	#
+	# get outfile
+	outfile="$1"
+fi
+
+# test that outfile provided
+[ "$outfile" = "" ] && errMsg "NO OUTPUT FILE SPECIFIED"
+
+# set up temporary file
+tmp0="$dir/captcha_0_$$.miff"
+trap "rm -f $tmp0;" 0
+trap "rm -f $tmp0; exit 1" 1 2 3 15
+trap "rm -f $tmp0; exit 1" ERR
+	
+# compute random positions and orientations and characters
+xx1=`convert xc: -format "%[fx: -120 + sign(rand()-0.5)*floor(5*rand()+0.5)]" info:`
+xx2=`convert xc: -format "%[fx: -72 + sign(rand()-0.5)*floor(5*rand()+0.5)]" info:`
+xx3=`convert xc: -format "%[fx: -24 + sign(rand()-0.5)*floor(5*rand()+0.5)]" info:`
+xx4=`convert xc: -format "%[fx: 24 + sign(rand()-0.5)*floor(5*rand()+0.5)]" info:`
+xx5=`convert xc: -format "%[fx: 72 + sign(rand()-0.5)*floor(5*rand()+0.5)]" info:`
+xx6=`convert xc: -format "%[fx: 120 + sign(rand()-0.5)*floor(5*rand()+0.5)]" info:`
+yy1=`convert xc: -format "%[fx: sign(rand()-0.5)*floor(10*rand()+0.5)]" info:`
+yy2=`convert xc: -format "%[fx: sign(rand()-0.5)*floor(10*rand()+0.5)]" info:`
+yy3=`convert xc: -format "%[fx: sign(rand()-0.5)*floor(10*rand()+0.5)]" info:`
+yy4=`convert xc: -format "%[fx: sign(rand()-0.5)*floor(10*rand()+0.5)]" info:`
+yy5=`convert xc: -format "%[fx: sign(rand()-0.5)*floor(10*rand()+0.5)]" info:`
+yy6=`convert xc: -format "%[fx: sign(rand()-0.5)*floor(10*rand()+0.5)]" info:`
+rr1=`convert xc: -format "%[fx: sign(rand()-0.5)*floor($angle*rand()+0.5)]" info:`
+rr2=`convert xc: -format "%[fx: sign(rand()-0.5)*floor($angle*rand()+0.5)]" info:`
+rr3=`convert xc: -format "%[fx: sign(rand()-0.5)*floor($angle*rand()+0.5)]" info:`
+rr4=`convert xc: -format "%[fx: sign(rand()-0.5)*floor($angle*rand()+0.5)]" info:`
+rr5=`convert xc: -format "%[fx: sign(rand()-0.5)*floor($angle*rand()+0.5)]" info:`
+rr6=`convert xc: -format "%[fx: sign(rand()-0.5)*floor($angle*rand()+0.5)]" info:`
+ss1=`convert xc: -format "%[fx: sign(rand()-0.5)*floor($angle*rand()+0.5)]" info:`
+ss2=`convert xc: -format "%[fx: sign(rand()-0.5)*floor($angle*rand()+0.5)]" info:`
+ss3=`convert xc: -format "%[fx: sign(rand()-0.5)*floor($angle*rand()+0.5)]" info:`
+ss4=`convert xc: -format "%[fx: sign(rand()-0.5)*floor($angle*rand()+0.5)]" info:`
+ss5=`convert xc: -format "%[fx: sign(rand()-0.5)*floor($angle*rand()+0.5)]" info:`
+ss6=`convert xc: -format "%[fx: sign(rand()-0.5)*floor($angle*rand()+0.5)]" info:`
+if [ "$mode" = "both" ]; then
+	or1="rotate $rr1 skewX $ss1"
+	or2="rotate $rr2 skewX $ss2"
+	or3="rotate $rr3 skewX $ss3"
+	or4="rotate $rr4 skewX $ss4"
+	or5="rotate $rr5 skewX $ss5"
+	or6="rotate $rr6 skewX $ss6"
+elif [ "$mode" = "skew" ]; then
+	or1="skewX $ss1"
+	or2="skewX $ss2"
+	or3="skewX $ss3"
+	or4="skewX $ss4"
+	or5="skewX $ss5"
+	or6="skewX $ss6"
+elif [ "$mode" = "rotate" ]; then
+	or1="rotate $rr1"
+	or2="rotate $rr2"
+	or3="rotate $rr3"
+	or4="rotate $rr4"
+	or5="rotate $rr5"
+	or6="rotate $rr6"
+fi
+chars="A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9"
+charsArray=($chars)
+nchars=${#charsArray[*]}
+nchars1=`convert xc: -format "%[fx: $nchars - 1]" info:`
+pp1=`convert xc: -format "%[fx: floor($nchars1*rand()+0.5)]" info:`
+pp2=`convert xc: -format "%[fx: floor($nchars1*rand()+0.5)]" info:`
+pp3=`convert xc: -format "%[fx: floor($nchars1*rand()+0.5)]" info:`
+pp4=`convert xc: -format "%[fx: floor($nchars1*rand()+0.5)]" info:`
+pp5=`convert xc: -format "%[fx: floor($nchars1*rand()+0.5)]" info:`
+pp6=`convert xc: -format "%[fx: floor($nchars1*rand()+0.5)]" info:`
+cc1=${charsArray[$pp1]}
+cc2=${charsArray[$pp2]}
+cc3=${charsArray[$pp3]}
+cc4=${charsArray[$pp4]}
+cc5=${charsArray[$pp5]}
+cc6=${charsArray[$pp6]}
+fx=1.1
+fy=2
+bx1=`convert xc: -format "%[fx: 150 + $fx*$xx1]" info:`
+bx2=`convert xc: -format "%[fx: 150 + $fx*$xx2]" info:`
+bx3=`convert xc: -format "%[fx: 150 + $fx*$xx3]" info:`
+bx4=`convert xc: -format "%[fx: 150 + $fx*$xx4]" info:`
+bx5=`convert xc: -format "%[fx: 150 + $fx*$xx5]" info:`
+bx6=`convert xc: -format "%[fx: 150 + $fx*$xx6]" info:`
+by1=`convert xc: -format "%[fx: 40 + $fy*$yy1]" info:`
+by2=`convert xc: -format "%[fx: 40 + $fy*$yy2]" info:`
+by3=`convert xc: -format "%[fx: 40 + $fy*$yy3]" info:`
+by4=`convert xc: -format "%[fx: 40 + $fy*$yy4]" info:`
+by5=`convert xc: -format "%[fx: 40 + $fy*$yy5]" info:`
+by6=`convert xc: -format "%[fx: 40 + $fy*$yy6]" info:`
+
+printf "$outfile,$cc1,$bx1,$by1\n" >> captcha_bash_annotations.csv
+printf "$outfile,$cc2,$bx2,$by2\n" >> captcha_bash_annotations.csv
+printf "$outfile,$cc3,$bx3,$by3\n" >> captcha_bash_annotations.csv
+printf "$outfile,$cc4,$bx4,$by4\n" >> captcha_bash_annotations.csv
+printf "$outfile,$cc5,$bx5,$by5\n" >> captcha_bash_annotations.csv
+printf "$outfile,$cc6,$bx6,$by6\n" >> captcha_bash_annotations.csv
+
+# create image
+convert -size 290x70 xc:$undercolor -bordercolor $bordercolor -border 5 \
+	-fill black -font $font -pointsize $pointsize \
+	-draw "translate ${xx1},${yy1} $or1 gravity center text 0,0 '$cc1'" \
+	-draw "translate ${xx2},${yy2} $or2 gravity center text 0,0 '$cc2'" \
+	-draw "translate ${xx3},${yy3} $or3 gravity center text 0,0 '$cc3'" \
+	-draw "translate ${xx4},${yy4} $or4 gravity center text 0,0 '$cc4'" \
+	-draw "translate ${xx5},${yy5} $or5 gravity center text 0,0 '$cc5'" \
+	-draw "translate ${xx6},${yy6} $or6 gravity center text 0,0 '$cc6'" \
+	-fill none \
+	-draw "bezier ${bx1},${by1} ${bx2},${by2} ${bx3},${by3} ${bx4},${by4}" \
+	-draw "polyline ${bx4},${by4} ${bx5},${by5} ${bx6},${by6}" \
+	$tmp0
+	
+# resize if necessary
+if [ "$resize" != "100" ]; then
+	convert $tmp0 -resize ${resize}% "$outfile"
+else
+	convert $tmp0 "$outfile"
+fi
+exit 0
