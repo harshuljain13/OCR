@@ -12,6 +12,32 @@ This repository includes:
 ### Architecture
 ![Architecture](https://github.com/harshul1610/OCR/blob/master/images/cnn_lstm_Architecture.jpeg)
 
+### Instructions on How to run
+
+Get the repository
+```
+git clone https://github.com/harshul1610/OCR.git
+```
+
+Get the NIST19 dataset
+```
+mkdir data
+wget https://s3.amazonaws.com/nist-srd/SD19/by_class.zip
+unzip by_class.zip
+mv by_class NIST19
+```
+
+Get the Captcha data
+```
+cd OCR
+python2 generate_captcha.py 
+```
+
+Run the final notebook for training and testing
+```
+CNN_LSTM_CTC_OCR-captcha.ipynb
+```
+
 ### LICENSE
 
 MIT
