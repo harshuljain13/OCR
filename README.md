@@ -10,7 +10,7 @@ This repository includes:
 ```
 
 ### Architecture
-![Architecture](https://github.com/harshul1610/OCR/blob/master/images/cnn_lstm_Architecture.jpeg)
+![Architecture](images/cnn_lstm_Architecture.jpeg)
 
 ### Instructions on How to run
 
